@@ -134,6 +134,8 @@ I need you to create Unity Editor tools for NEXUS PROTOCOL. Before creating any 
 - Quest reward pools
 - Chest tier configuration
 - World drop rates
+- Spawner Managment options based on specific spawner selected in menu **Not in GDD but needs implimented regardless
+- Spawner specific settings i.e. setting garenteed rarity spawns, etc **Not in GDD but needs implimented regardless
 
 ### 9. Zone Builder
 **Check GDD_v3.md sections:** Level Design (Fractured Coast, Scorched Plateau, etc.)
