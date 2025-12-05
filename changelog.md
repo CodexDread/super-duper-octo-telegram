@@ -1,5 +1,59 @@
 # Project Changelog - NEXUS PROTOCOL
 
+## [Editor Tools v1.3] - 2024-12-05 - Zone Builder
+
+### Added - Zone Builder Tool (v1.0)
+**Location:** `Nexus/Zones/Zone Builder` menu
+
+#### Core Features Implemented:
+- **Overview Tab**: Database statistics, quick generation actions, zone progression view
+- **Zone Editor Tab**: Create/edit/delete zones with full configuration
+- **Spawn Points Tab**: Player spawn/respawn point placement and configuration
+- **Motor Pools Tab**: Vehicle spawn station configuration per GDD Motor Pool system
+- **Cover Points Tab**: Tactical cover point placement for Division-style cover system
+- **Hazards Tab**: Environmental hazard area configuration (9 hazard types)
+- **Encounters Tab**: Random encounter zone configuration with enemy spawning
+- **Connections Tab**: Zone-to-zone connection management
+- **Validation Tab**: Comprehensive zone validation with error reporting
+
+#### GDD Compliance:
+- **6 Story Zones**: Haven City (Hub), Fractured Coast (1-10), Scorched Plateau (10-20), Crystal Caverns (20-30), Nexus Wasteland (30-40), Core Facility (40-50)
+- **8 Endgame Zones**: Proving Grounds (Alpha/Beta/Gamma), Circle of Slaughter, Raids (NEXUS Core, Temporal Paradox, Singularity), The Spiral
+- **Motor Pool System**: Vehicle spawn stations with 30-second cooldown, fast travel between discovered stations
+- **Cover System**: Low/High cover, destructible, vaultable, corner cover types
+- **Level Ranges**: Per-zone level configuration with enemy scaling
+
+#### Zone Features:
+- Zone boundary and level range configuration
+- Respawn point placement with fast travel support
+- Vehicle spawn locations (Motor Pool stations)
+- Cover point generation and placement
+- Environmental hazard placement (Radiation, Toxic, Fire, Electric, Cryo, Void, Explosive, Falling, Crushing)
+- Random encounter zones with difficulty scaling
+- Zone-to-zone connections (Door, Gate, Tunnel, Elevator, Teleporter, Vehicle Ramp, etc.)
+- Sub-area support within zones
+
+#### Files Created:
+- `Assets/Scripts/Runtime/Zones/ZoneEnums.cs` - Zone types, hazards, spawns, encounters, POIs
+- `Assets/Scripts/Runtime/Zones/ZoneDefinition.cs` - ScriptableObject for zone data
+- `Assets/Scripts/Runtime/Zones/ZoneDatabase.cs` - Database with cached lookups
+- `Assets/Scripts/Editor/Zones/ZoneBuilderWindow.cs` - Main editor window (1200+ lines)
+
+#### Quick Generation Features:
+- Auto-generate all 6 story zones with default configuration
+- Auto-generate all 8 endgame zones
+- Batch validation across all zones
+
+#### Tool Standards Followed:
+- Lives in Scripts/Editor/ folder
+- Uses [MenuItem("Nexus/Zones/Zone Builder")]
+- Data stored in ScriptableObjects
+- Includes tooltips and help boxes
+- Supports undo/redo operations
+- Color-coded zone and element display
+
+---
+
 ## [Editor Tools v1.2] - 2024-12-05 - Loot System Redesign
 
 ### Changed - Loot System Architecture
