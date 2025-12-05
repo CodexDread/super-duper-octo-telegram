@@ -1,5 +1,56 @@
 # Project Changelog - NEXUS PROTOCOL
 
+## [Editor Tools v1.1] - 2024-12-05 - Loot Table Manager
+
+### Added - Loot Table Manager Tool (v1.0)
+**Location:** `Nexus/Loot/Loot Table Manager` menu
+
+#### Core Features Implemented:
+- **Overview Tab**: Database statistics, quick actions, validation
+- **Table Editor Tab**: Full loot table editing with entry management
+- **Enemy Tables Tab**: Enemy-specific loot configuration (10 enemy types)
+- **Chest Tiers Tab**: Chest tier configuration (7 tiers: White to Red)
+- **Quest Rewards Tab**: Quest reward pool configuration (Side, Main, Daily, Weekly)
+- **World Drops Tab**: Zone-specific world drop rates (6 zones + endgame)
+- **Rarity Config Tab**: Visualize rarity weights and manufacturer distribution
+- **Simulation Tab**: Drop simulation testing (up to 100,000 rolls)
+
+#### GDD Compliance:
+- **7 Rarity Tiers**: Proper drop rates per GDD (Common 60% to Apocalypse 0.01%)
+- **7 Manufacturers**: Manufacturer bias settings for weapon drops
+- **10 Mayhem Levels**: Mayhem scaling (+20% loot quality per level, +50% enemy health)
+- **6 Game Zones**: Level-based scaling (Fractured Coast to Core Facility)
+- **Chest Tiers**: White (Common only) to Red (Apocalypse possible)
+
+#### Files Created:
+- `Assets/Scripts/Runtime/Loot/LootEnums.cs` - Source types, item types, chest tiers, zones
+- `Assets/Scripts/Runtime/Loot/LootTable.cs` - LootTableEntry and LootTable ScriptableObjects
+- `Assets/Scripts/Runtime/Loot/LootTableDatabase.cs` - Database with cached lookups
+- `Assets/Scripts/Editor/Loot/LootTableManagerWindow.cs` - Main editor window (1100+ lines)
+
+#### Technical Features:
+- Enemy-specific loot tables with rarity/level scaling
+- Rarity weight configuration with visual charts
+- Manufacturer bias settings (per-table and per-entry)
+- Level-based scaling with AnimationCurve support
+- Quest reward pools with quest ID conditions
+- Chest tier configuration matching GDD specifications
+- World drop rates by zone
+- Drop condition flags (FirstKill, Coop, Mayhem6+, etc.)
+- Drop simulation with rarity/type/manufacturer breakdown
+- Mayhem-exclusive entries (Mayhem 6+ only drops)
+- Parent table inheritance system
+
+#### Tool Standards Followed:
+- Lives in Scripts/Editor/ folder
+- Uses [MenuItem("Nexus/Loot/Loot Table Manager")]
+- Data stored in ScriptableObjects
+- Includes tooltips and help boxes
+- Supports batch table generation
+- Progress bars for simulations
+
+---
+
 ## [Editor Tools v1.0] - 2024-12-05 - Weapon Part Manager
 
 ### Added - Weapon Part Manager Tool (v1.0)
