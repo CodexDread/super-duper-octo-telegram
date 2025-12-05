@@ -11,6 +11,13 @@ namespace NexusProtocol.Editor
 {
     /// <summary>
     /// Loot Table Manager - Editor tool for configuring drop rates and loot pools
+    ///
+    /// LOOT SYSTEM DESIGN:
+    /// - Generic weapons (Common-Epic): Generated at RUNTIME by DOTS/ECS - NOT in loot tables
+    /// - Unique weapons (Legendary+): Defined via UniqueWeaponDefinition, managed in loot tables
+    /// - Equipment (all rarities): Managed via loot tables
+    /// - Consumables/Cosmetics: Managed via loot tables
+    ///
     /// Features per Editor_Tools_Development_Prompt.md:
     /// - Enemy-specific loot tables
     /// - Rarity weight configuration
@@ -19,17 +26,20 @@ namespace NexusProtocol.Editor
     /// - Quest reward pools
     /// - Chest tier configuration
     /// - World drop rates
+    /// - UNIQUE WEAPON MANAGEMENT (Legendary/Pearlescent/Apocalypse)
     /// </summary>
     public class LootTableManagerWindow : EditorWindow
     {
-        private const string TOOL_VERSION = "1.0";
+        private const string TOOL_VERSION = "1.1";
         private const string TOOL_NAME = "Loot Table Manager";
         private const string DATABASE_PATH = "Assets/ScriptableObjects/LootTables/LootTableDatabase.asset";
         private const string TABLES_FOLDER = "Assets/ScriptableObjects/LootTables/Tables";
+        private const string UNIQUE_WEAPONS_FOLDER = "Assets/ScriptableObjects/LootTables/UniqueWeapons";
 
         private enum Tab
         {
             Overview,
+            UniqueWeapons,
             TableEditor,
             EnemyTables,
             ChestTiers,
@@ -65,6 +75,13 @@ namespace NexusProtocol.Editor
         private Dictionary<LootItemType, int> _simulationTypeResults;
         private Dictionary<WeaponManufacturer, int> _simulationManufacturerResults;
 
+        // Unique weapon management
+        private List<UniqueWeaponDefinition> _uniqueWeapons = new List<UniqueWeaponDefinition>();
+        private UniqueWeaponDefinition _selectedUniqueWeapon;
+        private SerializedObject _selectedUniqueWeaponSO;
+        private Vector2 _uniqueWeaponListScrollPosition;
+        private string _uniqueWeaponSearchFilter = "";
+
         // Rarity colors (from GDD)
         private static readonly Dictionary<WeaponRarity, Color> RarityColors = new Dictionary<WeaponRarity, Color>
         {
@@ -87,6 +104,7 @@ namespace NexusProtocol.Editor
         private void OnEnable()
         {
             LoadDatabase();
+            LoadUniqueWeapons();
         }
 
         private void LoadDatabase()
@@ -103,6 +121,24 @@ namespace NexusProtocol.Editor
             }
 
             _database.InitializeCache();
+        }
+
+        private void LoadUniqueWeapons()
+        {
+            _uniqueWeapons.Clear();
+
+            string[] guids = AssetDatabase.FindAssets("t:UniqueWeaponDefinition");
+            foreach (string guid in guids)
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                var weapon = AssetDatabase.LoadAssetAtPath<UniqueWeaponDefinition>(path);
+                if (weapon != null)
+                {
+                    _uniqueWeapons.Add(weapon);
+                }
+            }
+
+            Debug.Log($"[{TOOL_NAME}] Loaded {_uniqueWeapons.Count} unique weapons");
         }
 
         private void EnsureFolderExists(string path)
@@ -155,6 +191,9 @@ namespace NexusProtocol.Editor
                 case Tab.Overview:
                     DrawOverviewTab();
                     break;
+                case Tab.UniqueWeapons:
+                    DrawUniqueWeaponsTab();
+                    break;
                 case Tab.TableEditor:
                     DrawTableEditorTab();
                     break;
@@ -185,18 +224,33 @@ namespace NexusProtocol.Editor
 
         private void DrawOverviewTab()
         {
+            // Loot system design explanation
             EditorGUILayout.HelpBox(
-                "Loot Table Manager allows you to configure drop rates and loot pools for NEXUS PROTOCOL.\n\n" +
+                "LOOT SYSTEM DESIGN:\n\n" +
+                "WEAPONS:\n" +
+                "  - Common/Uncommon/Rare/Epic: Generated at RUNTIME by DOTS/ECS (NOT in loot tables)\n" +
+                "  - Legendary/Pearlescent/Apocalypse: UNIQUE named weapons defined in loot tables\n" +
+                "    (Fixed unique parts + randomized other parts via ECS)\n\n" +
+                "NON-WEAPONS:\n" +
+                "  - Equipment (Shields, Grenades, etc.): All rarities via loot tables\n" +
+                "  - Consumables & Cosmetics: Via loot tables\n\n" +
+                "Use the 'Unique Weapons' tab to create named legendary+ weapons with unique effects.",
+                MessageType.Info);
+
+            EditorGUILayout.Space();
+
+            EditorGUILayout.HelpBox(
                 "Features:\n" +
+                "- UNIQUE WEAPON MANAGEMENT (Legendary/Pearlescent/Apocalypse)\n" +
                 "- Enemy-specific loot tables\n" +
-                "- Rarity weight configuration (7 tiers: Common to Apocalypse)\n" +
+                "- Rarity weight configuration (7 tiers)\n" +
                 "- Manufacturer bias settings (7 manufacturers)\n" +
                 "- Level-based scaling (1-50)\n" +
                 "- Quest reward pools\n" +
                 "- Chest tier configuration (White to Red)\n" +
                 "- World drop rates by zone\n" +
                 "- Drop simulation testing",
-                MessageType.Info);
+                MessageType.None);
 
             EditorGUILayout.Space();
 
@@ -260,6 +314,26 @@ namespace NexusProtocol.Editor
 
                 EditorGUILayout.EndVertical();
 
+                // Unique weapons summary
+                EditorGUILayout.Space();
+                EditorGUILayout.LabelField("Unique Weapons (Legendary+)", EditorStyles.boldLabel);
+                EditorGUILayout.BeginVertical(EditorStyles.helpBox);
+
+                int legendaryCount = _uniqueWeapons.Count(w => w.rarity == WeaponRarity.Legendary);
+                int pearlescentCount = _uniqueWeapons.Count(w => w.rarity == WeaponRarity.Pearlescent);
+                int apocalypseCount = _uniqueWeapons.Count(w => w.rarity == WeaponRarity.Apocalypse);
+
+                GUI.color = RarityColors[WeaponRarity.Legendary];
+                EditorGUILayout.LabelField($"  Legendary: {legendaryCount}");
+                GUI.color = RarityColors[WeaponRarity.Pearlescent];
+                EditorGUILayout.LabelField($"  Pearlescent: {pearlescentCount}");
+                GUI.color = RarityColors[WeaponRarity.Apocalypse];
+                EditorGUILayout.LabelField($"  Apocalypse: {apocalypseCount}");
+                GUI.color = Color.white;
+                EditorGUILayout.LabelField($"  Total Unique Weapons: {_uniqueWeapons.Count}");
+
+                EditorGUILayout.EndVertical();
+
                 // Validation
                 EditorGUILayout.Space();
                 if (GUILayout.Button("Validate All Tables"))
@@ -277,6 +351,245 @@ namespace NexusProtocol.Editor
                     }
                 }
             }
+        }
+
+        #endregion
+
+        #region Unique Weapons Tab
+
+        private void DrawUniqueWeaponsTab()
+        {
+            EditorGUILayout.LabelField("Unique Weapon Management (Legendary+)", EditorStyles.boldLabel);
+
+            EditorGUILayout.HelpBox(
+                "Create and manage unique named weapons (Legendary, Pearlescent, Apocalypse).\n" +
+                "Each unique weapon has:\n" +
+                "- Fixed parts that define its identity (at least the receiver)\n" +
+                "- A unique effect/perk\n" +
+                "- Dedicated drop sources (bosses, chests)\n\n" +
+                "Non-fixed parts are randomized by the ECS system when the weapon drops.",
+                MessageType.Info);
+
+            EditorGUILayout.Space();
+
+            EditorGUILayout.BeginHorizontal();
+
+            // Left panel - Unique weapon list
+            EditorGUILayout.BeginVertical(GUILayout.Width(300));
+            DrawUniqueWeaponList();
+            EditorGUILayout.EndVertical();
+
+            // Right panel - Weapon editor
+            EditorGUILayout.BeginVertical();
+            DrawUniqueWeaponEditor();
+            EditorGUILayout.EndVertical();
+
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private void DrawUniqueWeaponList()
+        {
+            EditorGUILayout.LabelField("Unique Weapons", EditorStyles.boldLabel);
+
+            // Search
+            EditorGUILayout.BeginHorizontal();
+            _uniqueWeaponSearchFilter = EditorGUILayout.TextField(_uniqueWeaponSearchFilter, EditorStyles.toolbarSearchField);
+            if (GUILayout.Button("X", GUILayout.Width(20)))
+            {
+                _uniqueWeaponSearchFilter = "";
+            }
+            EditorGUILayout.EndHorizontal();
+
+            EditorGUILayout.Space();
+
+            // Weapon list
+            _uniqueWeaponListScrollPosition = EditorGUILayout.BeginScrollView(_uniqueWeaponListScrollPosition, GUILayout.Height(400));
+
+            var filteredWeapons = _uniqueWeapons
+                .Where(w => string.IsNullOrEmpty(_uniqueWeaponSearchFilter) ||
+                            w.weaponName.ToLower().Contains(_uniqueWeaponSearchFilter.ToLower()))
+                .OrderBy(w => w.rarity)
+                .ThenBy(w => w.weaponName);
+
+            foreach (var weapon in filteredWeapons)
+            {
+                GUI.color = weapon == _selectedUniqueWeapon ? Color.cyan : weapon.GetRarityColor();
+
+                string label = $"[{weapon.rarity.ToString().Substring(0, 1)}] {weapon.weaponName}";
+                if (GUILayout.Button(label, EditorStyles.miniButton))
+                {
+                    _selectedUniqueWeapon = weapon;
+                    _selectedUniqueWeaponSO = new SerializedObject(weapon);
+                }
+            }
+
+            GUI.color = Color.white;
+
+            EditorGUILayout.EndScrollView();
+
+            EditorGUILayout.Space();
+
+            if (GUILayout.Button("+ Create New Unique Weapon", GUILayout.Height(30)))
+            {
+                CreateNewUniqueWeapon();
+            }
+
+            if (GUILayout.Button("Refresh List"))
+            {
+                LoadUniqueWeapons();
+            }
+        }
+
+        private void DrawUniqueWeaponEditor()
+        {
+            if (_selectedUniqueWeapon == null)
+            {
+                EditorGUILayout.HelpBox("Select a unique weapon from the list to edit.", MessageType.Info);
+                return;
+            }
+
+            EditorGUILayout.LabelField($"Editing: {_selectedUniqueWeapon.weaponName}", EditorStyles.boldLabel);
+
+            if (_selectedUniqueWeaponSO != null)
+            {
+                _selectedUniqueWeaponSO.Update();
+
+                // Identity
+                EditorGUILayout.LabelField("Identity", EditorStyles.boldLabel);
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("weaponId"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("weaponName"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("flavorText"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("loreText"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("rarity"));
+
+                EditorGUILayout.Space();
+
+                // Fixed Parts
+                EditorGUILayout.LabelField("Fixed Parts (Define Weapon Identity)", EditorStyles.boldLabel);
+                EditorGUILayout.HelpBox("Fixed parts are guaranteed on this weapon. At minimum, set the receiver.", MessageType.None);
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("fixedReceiver"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("fixedBarrel"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("fixedMagazine"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("fixedGrip"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("fixedStock"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("fixedSight"));
+
+                // Show part configuration summary
+                var config = _selectedUniqueWeapon.GetPartConfiguration();
+                EditorGUILayout.LabelField($"Fixed: {config.FixedCount}/6 parts, Randomized: {config.RandomCount}/6 parts");
+
+                EditorGUILayout.Space();
+
+                // Randomization settings
+                EditorGUILayout.LabelField("Randomization Settings", EditorStyles.boldLabel);
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("minRandomPartRarity"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("maxRandomPartRarity"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("preferredManufacturers"), true);
+
+                EditorGUILayout.Space();
+
+                // Unique effect
+                EditorGUILayout.LabelField("Unique Effect", EditorStyles.boldLabel);
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("uniqueEffectName"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("uniqueEffectDescription"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("uniqueEffectPrefab"));
+
+                EditorGUILayout.Space();
+
+                // Drop settings
+                EditorGUILayout.LabelField("Drop Configuration", EditorStyles.boldLabel);
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("baseDropWeight"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("minimumLevel"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("worldDropEnabled"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("dedicatedSources"), true);
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("minimumMayhemLevel"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("mayhemExclusive"));
+
+                EditorGUILayout.Space();
+
+                // Visual
+                EditorGUILayout.LabelField("Visual", EditorStyles.boldLabel);
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("icon"));
+                EditorGUILayout.PropertyField(_selectedUniqueWeaponSO.FindProperty("uniqueMaterial"));
+
+                _selectedUniqueWeaponSO.ApplyModifiedProperties();
+            }
+
+            EditorGUILayout.Space();
+
+            // Validation
+            if (_selectedUniqueWeapon.Validate(out var errors))
+            {
+                EditorGUILayout.HelpBox("Weapon definition is valid.", MessageType.Info);
+            }
+            else
+            {
+                EditorGUILayout.HelpBox($"Validation errors:\n{string.Join("\n", errors)}", MessageType.Error);
+            }
+
+            EditorGUILayout.Space();
+
+            EditorGUILayout.BeginHorizontal();
+            if (GUILayout.Button("Save"))
+            {
+                EditorUtility.SetDirty(_selectedUniqueWeapon);
+                AssetDatabase.SaveAssets();
+                Debug.Log($"[{TOOL_NAME}] Saved {_selectedUniqueWeapon.weaponName}");
+            }
+
+            GUI.color = Color.red;
+            if (GUILayout.Button("Delete"))
+            {
+                if (EditorUtility.DisplayDialog("Delete Unique Weapon",
+                    $"Delete '{_selectedUniqueWeapon.weaponName}'?", "Delete", "Cancel"))
+                {
+                    DeleteUniqueWeapon(_selectedUniqueWeapon);
+                }
+            }
+            GUI.color = Color.white;
+            EditorGUILayout.EndHorizontal();
+        }
+
+        private void CreateNewUniqueWeapon()
+        {
+            EnsureFolderExists(UNIQUE_WEAPONS_FOLDER);
+
+            var weapon = CreateInstance<UniqueWeaponDefinition>();
+            weapon.weaponName = "New Unique Weapon";
+            weapon.weaponId = $"unique_{DateTime.Now.Ticks}";
+            weapon.rarity = WeaponRarity.Legendary;
+
+            string path = EditorUtility.SaveFilePanelInProject(
+                "Save New Unique Weapon",
+                "NewUniqueWeapon",
+                "asset",
+                "Create a new unique weapon definition",
+                UNIQUE_WEAPONS_FOLDER);
+
+            if (!string.IsNullOrEmpty(path))
+            {
+                AssetDatabase.CreateAsset(weapon, path);
+                AssetDatabase.SaveAssets();
+
+                _uniqueWeapons.Add(weapon);
+                _selectedUniqueWeapon = weapon;
+                _selectedUniqueWeaponSO = new SerializedObject(weapon);
+
+                Debug.Log($"[{TOOL_NAME}] Created new unique weapon at {path}");
+            }
+        }
+
+        private void DeleteUniqueWeapon(UniqueWeaponDefinition weapon)
+        {
+            string path = AssetDatabase.GetAssetPath(weapon);
+            _uniqueWeapons.Remove(weapon);
+            AssetDatabase.DeleteAsset(path);
+            AssetDatabase.SaveAssets();
+
+            _selectedUniqueWeapon = null;
+            _selectedUniqueWeaponSO = null;
+
+            Debug.Log($"[{TOOL_NAME}] Deleted unique weapon: {weapon.weaponName}");
         }
 
         #endregion

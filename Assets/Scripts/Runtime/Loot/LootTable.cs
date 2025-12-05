@@ -6,8 +6,27 @@ using NexusProtocol.Weapons;
 
 namespace NexusProtocol.Loot
 {
+    /*
+     * LOOT TABLE DESIGN:
+     *
+     * This loot table system handles:
+     * 1. UNIQUE WEAPONS (Legendary/Pearlescent/Apocalypse) - via UniqueWeaponDefinition references
+     * 2. EQUIPMENT (Shields, Grenades, Class Mods, Relics) - all rarities
+     * 3. CONSUMABLES (Health, Ammo, Currency)
+     * 4. COSMETICS
+     *
+     * IMPORTANT: Generic weapons (Common through Epic) are NOT managed here.
+     * They are generated at runtime by the DOTS/ECS weapon generation system.
+     *
+     * When a unique weapon drops, the game:
+     * 1. Gets the fixed parts from UniqueWeaponDefinition
+     * 2. Calls the ECS system to generate randomized parts for unfixed slots
+     * 3. Assembles the final weapon with both fixed and random parts
+     */
+
     /// <summary>
-    /// A single entry in a loot table defining what can drop and its probability
+    /// A single entry in a loot table defining what can drop and its probability.
+    /// For unique weapons, reference a UniqueWeaponDefinition.
     /// </summary>
     [Serializable]
     public class LootTableEntry
@@ -16,7 +35,10 @@ namespace NexusProtocol.Loot
         [Tooltip("Type of item this entry represents")]
         public LootItemType itemType;
 
-        [Tooltip("Specific item ID (for unique/legendary items)")]
+        [Tooltip("For UniqueWeapon type: Reference to the unique weapon definition")]
+        public UniqueWeaponDefinition uniqueWeapon;
+
+        [Tooltip("Specific item ID (for non-weapon items)")]
         public string specificItemId;
 
         [Tooltip("Display name for this entry")]
@@ -34,11 +56,11 @@ namespace NexusProtocol.Loot
         [Tooltip("Guaranteed drop (ignores chance calculation)")]
         public bool guaranteed = false;
 
-        [Header("Rarity Settings")]
-        [Tooltip("Minimum rarity for this drop")]
+        [Header("Rarity Settings (for non-unique items)")]
+        [Tooltip("Minimum rarity for this drop (ignored for UniqueWeapon - uses definition)")]
         public WeaponRarity minRarity = WeaponRarity.Common;
 
-        [Tooltip("Maximum rarity for this drop")]
+        [Tooltip("Maximum rarity for this drop (ignored for UniqueWeapon - uses definition)")]
         public WeaponRarity maxRarity = WeaponRarity.Legendary;
 
         [Tooltip("Custom rarity weights (overrides global)")]
@@ -47,8 +69,8 @@ namespace NexusProtocol.Loot
         [Tooltip("Custom weights per rarity tier")]
         public RarityWeightOverride[] customRarityWeights;
 
-        [Header("Manufacturer Bias")]
-        [Tooltip("Enable manufacturer bias for weapon drops")]
+        [Header("Manufacturer Bias (for equipment only)")]
+        [Tooltip("Enable manufacturer bias")]
         public bool useManufacturerBias = false;
 
         [Tooltip("Manufacturer weight overrides")]
@@ -345,12 +367,18 @@ namespace NexusProtocol.Loot
 
         private LootDrop CreateDropFromEntry(LootTableEntry entry, int playerLevel, System.Random random)
         {
-            // Roll rarity
+            // Handle unique weapon drops specially
+            if (entry.itemType == LootItemType.UniqueWeapon && entry.uniqueWeapon != null)
+            {
+                return CreateUniqueWeaponDrop(entry, playerLevel, random);
+            }
+
+            // Roll rarity for non-unique items
             WeaponRarity rarity = RollRarity(entry, random);
 
-            // Roll manufacturer if applicable
+            // Roll manufacturer if applicable (for equipment)
             WeaponManufacturer? manufacturer = null;
-            if (IsWeaponType(entry.itemType))
+            if (IsEquipmentType(entry.itemType) && entry.useManufacturerBias)
             {
                 manufacturer = RollManufacturer(entry, random);
             }
@@ -371,7 +399,32 @@ namespace NexusProtocol.Loot
                 rarity = rarity,
                 manufacturer = manufacturer,
                 quantity = quantity,
-                itemLevel = itemLevel
+                itemLevel = itemLevel,
+                uniqueWeaponDef = null,
+                isUniqueWeapon = false
+            };
+        }
+
+        private LootDrop CreateUniqueWeaponDrop(LootTableEntry entry, int playerLevel, System.Random random)
+        {
+            var uniqueDef = entry.uniqueWeapon;
+
+            // Calculate item level
+            int itemLevel = Mathf.Clamp(
+                playerLevel + random.Next(-levelRange, levelRange + 1),
+                uniqueDef.minimumLevel, 50);
+
+            return new LootDrop
+            {
+                itemType = LootItemType.UniqueWeapon,
+                itemId = uniqueDef.weaponId,
+                displayName = uniqueDef.weaponName,
+                rarity = uniqueDef.rarity,
+                manufacturer = uniqueDef.GetManufacturer(),
+                quantity = 1, // Unique weapons always drop 1
+                itemLevel = itemLevel,
+                uniqueWeaponDef = uniqueDef,
+                isUniqueWeapon = true
             };
         }
 
@@ -460,9 +513,9 @@ namespace NexusProtocol.Loot
             return weights.Last().manufacturer;
         }
 
-        private bool IsWeaponType(LootItemType type)
+        private bool IsEquipmentType(LootItemType type)
         {
-            return type >= LootItemType.Weapon_AssaultRifle && type <= LootItemType.Weapon_Special;
+            return type >= LootItemType.Equipment_Shield && type <= LootItemType.Equipment_Relic;
         }
 
         private string GenerateItemId(LootTableEntry entry, WeaponRarity rarity)
@@ -582,7 +635,10 @@ namespace NexusProtocol.Loot
     }
 
     /// <summary>
-    /// Result of a loot roll
+    /// Result of a loot roll.
+    /// For unique weapons, this contains the UniqueWeaponDefinition which
+    /// should be passed to the ECS weapon assembly system to generate the
+    /// final weapon with fixed + randomized parts.
     /// </summary>
     [Serializable]
     public class LootDrop
@@ -594,6 +650,46 @@ namespace NexusProtocol.Loot
         public WeaponManufacturer? manufacturer;
         public int quantity;
         public int itemLevel;
+
+        /// <summary>
+        /// True if this is a unique weapon drop (Legendary+)
+        /// </summary>
+        public bool isUniqueWeapon;
+
+        /// <summary>
+        /// Reference to the unique weapon definition.
+        /// When spawning this drop, pass this to the ECS weapon assembly system:
+        /// 1. Use the fixed parts from uniqueWeaponDef
+        /// 2. Generate random parts for unfixed slots using ECS
+        /// 3. Assemble the final weapon
+        /// </summary>
+        public UniqueWeaponDefinition uniqueWeaponDef;
+
+        /// <summary>
+        /// Get the loot category for this drop
+        /// </summary>
+        public LootCategory GetCategory()
+        {
+            if (isUniqueWeapon) return LootCategory.UniqueWeapon;
+
+            return itemType switch
+            {
+                LootItemType.UniqueWeapon => LootCategory.UniqueWeapon,
+                LootItemType.Equipment_Shield or
+                LootItemType.Equipment_GrenadeMod or
+                LootItemType.Equipment_ClassMod or
+                LootItemType.Equipment_Relic => LootCategory.Equipment,
+                LootItemType.Consumable_Health or
+                LootItemType.Consumable_Ammo or
+                LootItemType.Consumable_Currency or
+                LootItemType.Consumable_Eridium => LootCategory.Consumable,
+                LootItemType.Cosmetic_WeaponSkin or
+                LootItemType.Cosmetic_CharacterSkin or
+                LootItemType.Cosmetic_VehicleSkin or
+                LootItemType.Cosmetic_HeadCustomization => LootCategory.Cosmetic,
+                _ => LootCategory.Special
+            };
+        }
     }
 
     /// <summary>

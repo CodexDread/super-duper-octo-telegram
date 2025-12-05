@@ -1,5 +1,50 @@
 # Project Changelog - NEXUS PROTOCOL
 
+## [Editor Tools v1.2] - 2024-12-05 - Loot System Redesign
+
+### Changed - Loot System Architecture
+**IMPORTANT DESIGN CHANGE:** Weapons are now split between two systems:
+
+1. **Generic Weapons (Common-Epic)**: Generated at RUNTIME via DOTS/ECS
+   - These do NOT use loot tables
+   - Procedurally generated when enemies die using the ECS weapon generation system
+
+2. **Unique Weapons (Legendary/Pearlescent/Apocalypse)**: Managed via LOOT TABLES
+   - Named weapons with unique effects (e.g., "The Infinity", "Pandemic")
+   - Fixed parts that define the weapon's identity
+   - Remaining parts randomized via ECS when the weapon drops
+
+### Added - UniqueWeaponDefinition System
+**New File:** `Assets/Scripts/Runtime/Loot/UniqueWeaponDefinition.cs`
+
+Features:
+- Define named legendary+ weapons with fixed unique parts
+- Configure which parts are fixed vs randomized (ECS generates random parts)
+- Unique effect name and description
+- Dedicated drop sources (specific bosses, chests)
+- Mayhem-exclusive weapon support (Mayhem 6+ only)
+- Flavor text and lore support
+
+### Updated - Loot Table Manager (v1.1)
+**New Tab:** Unique Weapons - Full management of legendary+ weapons
+
+#### Updated Features:
+- **Overview Tab**: Now shows loot system design explanation and unique weapon counts
+- **Unique Weapons Tab**: Create/edit/delete UniqueWeaponDefinition assets
+  - Fixed parts configuration (receiver required, others optional)
+  - Part count summary (fixed vs randomized)
+  - Randomization settings for non-fixed parts
+  - Drop source configuration
+  - Validation with error messages
+- **Table Editor**: Updated to reference UniqueWeaponDefinition for unique drops
+
+#### Files Modified:
+- `LootEnums.cs` - Added LootCategory enum, updated design documentation
+- `LootTable.cs` - Added UniqueWeaponDefinition reference in entries, updated drop logic
+- `LootTableManagerWindow.cs` - Added Unique Weapons tab, updated overview
+
+---
+
 ## [Editor Tools v1.1] - 2024-12-05 - Loot Table Manager
 
 ### Added - Loot Table Manager Tool (v1.0)
@@ -26,20 +71,7 @@
 - `Assets/Scripts/Runtime/Loot/LootEnums.cs` - Source types, item types, chest tiers, zones
 - `Assets/Scripts/Runtime/Loot/LootTable.cs` - LootTableEntry and LootTable ScriptableObjects
 - `Assets/Scripts/Runtime/Loot/LootTableDatabase.cs` - Database with cached lookups
-- `Assets/Scripts/Editor/Loot/LootTableManagerWindow.cs` - Main editor window (1100+ lines)
-
-#### Technical Features:
-- Enemy-specific loot tables with rarity/level scaling
-- Rarity weight configuration with visual charts
-- Manufacturer bias settings (per-table and per-entry)
-- Level-based scaling with AnimationCurve support
-- Quest reward pools with quest ID conditions
-- Chest tier configuration matching GDD specifications
-- World drop rates by zone
-- Drop condition flags (FirstKill, Coop, Mayhem6+, etc.)
-- Drop simulation with rarity/type/manufacturer breakdown
-- Mayhem-exclusive entries (Mayhem 6+ only drops)
-- Parent table inheritance system
+- `Assets/Scripts/Editor/Loot/LootTableManagerWindow.cs` - Main editor window
 
 #### Tool Standards Followed:
 - Lives in Scripts/Editor/ folder
